@@ -8,8 +8,8 @@ The High-Level Goal is to plop down a donkeycar (with minor hardward enhancement
 An example early run by the RLDonkecar (filmed by Yana Bezus) can be seen [here.](https://drive.google.com/open?id=1TIjjgSAZopL1PxoWHfXPwQQFAPlu5QcM)
 
 In a little more detail, the goal is:
-* to plop the donkeycar down on any track that it had never seen before.
-* slowly self-drive around the track using opencv-based line-following
+* To plop the donkeycar down on any track that it had never seen before.
+* Slowly self-drive around the track using opencv-based line-following
 * Use the opencv line-following to train a Neural Net (NN) like the 5-level NN in the original donkeycar code 
 * Use Reinforcement Learning (RL) to increase the thrattle and improve the steering to optimize the path of the donkeycar.
 * Push Raspberry Pi's to their limit to see what is possible and minimize the changes from the original donkeycar design.
@@ -19,11 +19,11 @@ In a little more detail, the goal is:
 
 The RLDonkeycar has minimal hardward changes from the original donkeycar design: 
 * An additional raspberry pi with battery and SD-card
-*  a short (6") ethernet cable between the pi's 
-* stand-offs to stack the raspberry pi's
+* A short (6") ethernet cable between the pi's 
+* Stand-offs to stack the raspberry pi's
 ![RLDonkeycar](https://github.com/downingbots/RLDonkeycar/RLDonkeycar.jpg)
 
-The Software features:
+The software features:
 * on-car real-time control of donkeycar driving based upon OpenCV line-following or execution of Keras Neural Net on other Raspberry Pi 3B+ (aka "Control Pi")
 * on-car real-time supervised learning or reinforcement learning (RL) on one Raspberry Pi 3B+ (aka RLPi.) 
 * uses Keras RL implementation based on OpenAI's Proximal Policy Optimization ([PPO paper](https://arxiv.org/pdf/1707.06347.pdf)). A good introduction to PPO is available on [YouTube by Arxiv Insights.](https://www.youtube.com/watch?v=5P7I-xPq8u8) Briefly, PPO is a gradient descent algorithm with an actor-critic component and a reward function based upon a history of results. 
@@ -34,10 +34,10 @@ The Software features:
 
 1. Initially the donkeycar is placed on a center yellow line (optionally dashed)
 2. Control Pi uses optical flow to determine the minimal speed that the car can move at.
-3. Once moving, the Control Pi uses open-CV and a simple Hough-Transform algorithm to follow the Center Dashed yellow line. The white lines, the white/yellow colors, and land widths are also tracked by identifying "vanishing points".  A human typically follows the car as it makes its way around the track. If the car leaves the track, the human picks up the car and resets it to the center of the track. Mixing things up like driving direction, lighting, rerunning at failure points are recommended.
+3. Once moving, the Control Pi uses open-CV and a simple Hough-Transform algorithm to follow the center dashed yellow line. The white/yellow lines and their colors plus lane widths are dynamically computed by identifying "vanishing points" and then tracking these lines/colors.  A human typically follows the car as it makes its way around the track. If the car leaves the track, the human picks up the car and resets it to the center of the track. Mixing things up like driving direction, lighting, rerunning at failure points are recommended.
 4. The OpenCV-based throttle and steering values plus the image are sent to the RLPi to perform supervised learning of the Keras model
 5. Once sufficient supervised learning has been trained at the RLPi, the weights of the Keras model are sent to the Control Pi and loaded there.
-6. The Control Pi now uses the Keras Model to compute the throttle and steering instead of the Open-CV line-following.  Every few messages (configurable), a random bounded change to the computed throttle and steering are made. This is increase the search-space.
+6. The Control Pi now uses the Keras Model to compute the throttle and steering instead of the Open-CV line-following.  Every few messages (configurable), a random bounded change to the computed throttle and steering are made. This randomness increases the RL search-space.
 7.  The Keras model's throttle and steering values plus the image are sent to the RLPi. The RLPi caches this message and runs OpenCV on the image to compute ther frame's reward as a function of throttle and distance from center. If it is determined that the car has left the track, a mini-batch is completed allowing the total reward to be comuputed by accumulating the frame rewards within the min-batch with a time-decay function. Very small mini-batches are ignored as these are typically caused by manual resetting of the car.  If a Mini-batch reaches a length of 20, then this is acceptable to end the batch because the cause-and-effect of actions 20 images apart is very small in autonomous racing (unlike in video games where there can be sparse large rewards.)
 8.  Once a certain number of messages are cached and the mini-batch has completed. the Keras model is trained on these messages and these cached messages are discared.
 7. Periodically, the revised weights of the Keras PPO model are sent to the Control Pi and loaded there.
