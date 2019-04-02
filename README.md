@@ -8,9 +8,9 @@ The high-level goal is to plop down a donkeycar (with minor hardware enhancement
 [![An example early run by the RLDonkeycar (filmed by Yana Bezus)](https://github.com/downingbots/RLDonkeycar/blob/master/RLDonkeycar_vid.png)](https://photos.google.com/share/AF1QipMlxMwhAUZxUmiD4-NLPlO-bo2fk7351VvwHwDEcD6pAKZGtQaQdehy3EjVbIur1A/photo/AF1QipMRmGCoAM7wmMUT726chX_j62kb2KRdNKO9wcFO?key=OElIbW5zQ3B4ZUhFTnpiOHJ5SURxb1RlMnk0cVZ3)
 
 In a little more detail, the goal of the RLDonkeycar software is:
-* To plop the donkeycar down on the center of a track, including tracks it had never seen before.  The track should have a dashed or solid yellow center line and white lane lines.
-* Slowly self-drive around the track using on-car real-time control of donkeycar driving based upon OpenCV line-following or execution of Keras Neural Net on other Raspberry Pi 3B+ (aka "Control Pi")
-* Use the opencv line-following to on-car real-time immitaion learning or reinforcement learning (RL) on one Raspberry Pi 3B+ (aka RLPi.) The Neural Net (NN) is similar to the small convolutional NN in the original donkeycar code but enhance to support RL.
+* To plop the donkeycar down on the center of a track, even tracks it had never seen before.  The track should have a dashed or solid yellow center line and white lane lines.
+* Slowly self-drive around the track using on-car real-time automated control of donkeycar. The automated driving is based upon OpenCV line-following or execution of a Keras Neural Net on a Raspberry Pi 3B+ (aka the "Control Pi")
+* Use the opencv line-following to do on-car real-time imitation learning or reinforcement learning (RL) on the second Raspberry Pi 3B+ (aka RLPi.) The Neural Net (NN) is similar to the small convolutional NN in the original donkeycar code but enhanced to support RL.
 * Uses Keras RL implementation based on OpenAI's Proximal Policy Optimization ([PPO paper](https://arxiv.org/pdf/1707.06347.pdf)). A good introduction to PPO is available on [YouTube by Arxiv Insights.](https://www.youtube.com/watch?v=5P7I-xPq8u8) Briefly, PPO is a gradient descent algorithm with an actor-critic component and a reward function based upon a history of results. 
 * Periodically update the Control Pi's Keras model weights as computed at RLPi to support real-time learning as the RLDonkeycar drives continuously along the track.
 * Push Raspberry Pi's to their limit to see what is possible and minimize the changes from the original donkeycar design. The original donkeycar does remarkably well with its simple convolutional NN on a raspberry pi, but can raspberry pi's do real-time RL?
@@ -20,7 +20,7 @@ In a little more detail, the goal of the RLDonkeycar software is:
 
 The RLDonkeycar has minimal hardware changes from the original donkeycar design: 
 * an additional Raspberry Pi 3B+ with SD card
-* an additional battery (fits side-to-side with the other battery under the pi's and 3-D printed plate)
+* an additional battery (fits side-to-side with the other battery under the pi's and their 3-D printed plate)
 * offsets to stack the raspberry pi's. The Control Pi should be on top and host the camera.
 * connect the raspberry pis with a 6" ethernet cable. Tie the cable back so it is outside the field of view of the camera.
 
@@ -29,13 +29,13 @@ When assembled, the RLDonkeycar should look like:
 
 #### Details of the Flow-Control
 
-1. Initially the donkeycar is placed on or near center yellow line (optionally dashed)
+1. Initially the donkeycar is placed on or near the center yellow line (optionally dashed)
 2. Control Pi uses [optical flow](https://en.wikipedia.org/wiki/Optical_flow) to determine the minimal speed that the car can move at.
 3. Once moving, the Control Pi uses open-CV and a simple Hough-Transform algorithm to follow the center dashed yellow line. The white/yellow lines and their colors plus lane widths are dynamically computed by identifying [vanishing points](https://en.wikipedia.org/wiki/Vanishing_point) and then tracking these lines/colors.  A human typically follows the car as it makes its way around the track. If the car leaves the track, the human picks up the car and resets it to the center of the track. Mixing things up like driving direction, lighting, rerunning at failure points are recommended. The slow speed of travel is required due to the frame-per-second (fps) limitations of the raspberry pi despite the simple OpenCV algorithm. To see much more complicated OpenCV algorithms, look at [Udacity student blogs.](https://github.com/anuragreddygv323/CarND-Student-Blogs)
 4. The OpenCV-based throttle and steering values plus the image are sent to the RLPi to perform imitation learning of the Keras model.
 5. Once sufficient imitation learning has been trained at the RLPi, the weights of the Keras model are sent to the Control Pi and loaded there.
 6. The Control Pi now uses the Keras Model to compute the throttle and steering instead of the Open-CV line-following.  Every few images (configurable), a random bounded change to the computed throttle and steering are made. This randomness increases the RL search-space.
-7.  The Keras model's throttle and steering values plus the image are sent to the RLPi. The RLPi caches this message and runs OpenCV on the image to compute the frame's reward as a function of throttle and distance from center. If it is determined that the car has left the track, a mini-batch is completed allowing the total reward to be computed by accumulating the frame rewards within the min-batch with a time-decay function. Very small mini-batches are ignored as these are typically caused by manual resetting of the car.  If a Mini-batch reaches a length of 20, then this is acceptable to end the batch because the cause-and-effect of actions 20 images apart is very small in autonomous racing (unlike in video games where there can be sparse large rewards.)
+7.  The Keras model's throttle and steering values plus the image are sent to the RLPi. The RLPi caches this message and runs OpenCV on the image to compute the frame's reward as a function of throttle and distance from center. If it is determined that the car has left the track, a mini-batch is completed allowing the total reward to be computed by accumulating the frame rewards within the mini-batch with a time-decay function. Very small mini-batches are ignored as these are typically caused by manual resetting of the car.  If a Mini-batch reaches a length of 20, then this is acceptable to end the batch because the cause-and-effect of actions 20 images apart is very small in autonomous racing (unlike in video games where there can be sparse large rewards.)
 8.  Once a certain number of messages are cached and the mini-batch has completed. the Keras model is trained on these messages and these cached messages are discarded.
 7. Periodically, the revised weights of the Keras PPO model are sent to the Control Pi and loaded there.
 6. The Control Pi now uses the revised Keras Model to compute the throttle and steering instead of the Open-CV line-following.  Goto step 6.
@@ -52,14 +52,14 @@ Instead of a human using a remote control, the RLDonkeycar is trained by a line-
 
 * The OpenCV line-following is slower than the NN in Frames-per-second (fps) in the original donkeycar code. Even with the simplest line-following algorithm, the donkeycar could only get around the track at the slowest speed the car could drive. If the speed was increased only slightly, the car would frequently drive off the track or not handle sharp turns. Sharp turns require a higher throttle in order to provide the additional torque required.
 * The slowest speed was determined by detecting movement of the car by optical flow. Movement by spectators could fool optical flow into thinking the car was moving. Such false positives can be reduced via manual parameter tuning that may also result in a higher minimum speed. Periodically, optical flow would be used to ensure that movement was still happening as a constant throttle results in battery drainage and the car slowing down. In its minimalistic design, the donkeycar does not have a wheel encoder to determine speed and only has a camera as sensor input.
-* Once moving, the Control Pi uses open-CV and a simple Hough-Transform algorithm to follow the Center Dashed yellow line. The white lines, the white/yellow colors, and land widths are also tracked by identifying "vanishing points". On some tracks, using gray-scale worked better and other tracks color images were better. Lighting makes a huge difference, and dynamically computing colors and their standard deviation worked best.
+* Once moving, the Control Pi uses open-CV and a simple Hough-Transform algorithm to follow the Center Dashed yellow line. The white lines, the white/yellow colors, and lane widths are also tracked by identifying "vanishing points". On some tracks, using gray-scale worked better and other tracks color images were better. Lighting makes a huge difference, and dynamically computing colors and their standard deviation worked best.
 
 #### Reinforcement Learning
 
-By initially doing imitation learning, RL can skip the long awkward phase learning by doing random movements. Random movements are still used, but they are bounded so that the RLDonkeycar will have the opportunity to recover from a bad move and still stay on the track, while still allowing the car to from learn better moves.  The RL was done asynchronously on the second "RLPi" from the driving. The goal is to do incremental real-time learning and ended up with the following implemnetations:
+By initially doing imitation learning, RL can skip the long awkward phase learning by doing random movements. Random movements are still used during reinforcement learning, but they are bounded so that the RLDonkeycar will have the opportunity to recover from a bad move and still stay on the track, while still allowing the car to from learn better moves.  The RL is done asynchronously on the "RLPi" while the Control Pi drives. This attempt to do incremental real-time learning ended up with the following implementation:
 
 * Unfortunately, early attempts at simple RL algorithms did not do well. After Switching to PPO (implemented using Keras), the RLDonkeycar succeeded in learning line-following instead of overfitting on the training data. The reward function is a function of speed and distance from the middle dashed line of the track as determined by the OpenCV code.
-* PPO uses a history of inputs and moves for training.  The RLPi stores frames in a cache.  Rewards are accumlated over a set of consecutive images as long as openCV determines that the car remains on the track up to a maximum of 20 consecutive images. Manual resetting a car that goes off the track could take one or two consecutive images so very short runs were ignored for training purposes.
+* PPO uses a history of inputs and moves for training.  The RLPi stores frames in a cache.  Rewards are accumulated over a set of consecutive images as long as openCV determines that the car remains on the track (up to a maximum of 20 consecutive images.) Manual resetting a car that goes off the track could take one or two consecutive images so very short runs were ignored for training purposes.
 * After the total accumlated reward for an image has been computed, the image is eligible to be dequeued and used to train PPO. Training on a batch of images is more efficient, so the current implementation uses a batch of at least 50 images.
 * The Raspberry Pi 3B+ could only run the PPO algorithm at about 1 FPS. At this frame rate, the donkeycar couldn't get around the track much faster than the OpenCV line-following algorithm. Like the original donkeycar NN, the success of the NN was tied to the speed that it was trained at.
 * The PPO seemed to converge to a usable model on a real track in fewer training images that the simulated "generated track" which is relatively featureless.
@@ -71,11 +71,11 @@ By initially doing imitation learning, RL can skip the long awkward phase learni
 
 * To address the battery issues, the next step is to add a rotary encoder and pid based upon the [work done by Alan Wells.]( https://www.bountysource.com/issues/49439689-rotary-encoder-updates) This will enable the donkeycar to travel at the desired speed despite a draining battery without making the neural net more complex.
 
-* There's more that can be done with the minimalistic 2 raspberry pi design. For example, instead of using a NN inspired by the simple convolutional NN used so well be the original donkeycar, a 2-level fully connected NN should be tried with PPO. A simplified NN should result in more FPS and faster throughput. Plenty of fine-tuning remains that can also improve performance.
+* There's more that can be done with the minimalist 2 raspberry pi design. For example, instead of using a NN inspired by the simple convolutional NN used so well by the original donkeycar, a 2-level fully connected NN should be tried with PPO. A simplified NN should result in more FPS and faster throughput. Plenty of fine-tuning remains to improve performance.
 
 ### Acknowledgements
 
-First thanks to Will Roscoe and Adam Conway for the inital donkeycar code, donkeycar design, and website (donkeycar.com). Will and Adam built the "hello world" of neural nets and real-world robotics. This repository tries to extend their work to Reinforcement Learning... but the RL coding isn't nearly as pretty :-) and may never be ready to be integrated into the main donkeycar branch.
+First thanks to Will Roscoe and Adam Conway for the initial donkeycar code, donkeycar design, and website (donkeycar.com). Will and Adam built the "hello world" of neural nets and real-world robotics. This repository tries to extend their work to Reinforcement Learning... but the RL coding isn't nearly as pretty :-) and may never be ready to be integrated into the main donkeycar branch.
 
 Thanks to Carlos Uranga at [DeepRacing](http://deepracing.com/). His efforts have created a space to develop and test autonomous RC cars on a regular basis. As of April 2019, DeepRacing meets bi-weekly at [TheShop.Build in San Jose]( https://theshop.build/San-Jose )
 
@@ -94,7 +94,7 @@ To run with the Unity-based simulator, use [the version of the simulator designe
 To run the RL code on the RLPi or with the simulator run:
 * python RLPi.py
 
-If using a phyisical car, put the car down near the middle of the track and start training in real-time. 
+If using a physical car, put the car down near the middle of the track and start training in real-time. 
 
 If running the simulation, start the simulator (preferable version 18.9) and select the screen resolution and "Generated Track" using a command like:
 * ./DonkeySimLinux/donkey_sim.x86_64 
