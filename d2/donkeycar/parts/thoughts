@@ -1,0 +1,26 @@
+Approach 1:
+
+Need to change to 1-hot categorical
+Need to store / predict reward
+
+does multi-param stop working?
+does 1-hot stop working?
+
+train on 1-hot 
+  - reward self-training won't work, but that's OK for debugging
+  - see if we get reasonable results going around track
+  - see if switch to NN continues to work
+
+Add reward prediciton
+  - see if switch to NN continues to work
+
+-----------------
+Approach 2:
+
+Predict 3 numbers
+  - throttle, steer, reward
+
+Only train if reward improves upon predicted-reward?
+won't choose max reward
+
+-----------------

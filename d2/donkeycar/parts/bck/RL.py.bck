@@ -1,0 +1,131 @@
+'''
+
+RL.py
+
+ReinforcementLearning: use OpenCV for lane following initially to gather
+training data. Start slowly, determin circuit, and incrementally improve 
+speed and paths. Use RI to improve from there.
+
+'''
+
+
+
+
+import os
+import numpy as np
+
+import donkeycar as dk
+from donkeycar.parts.mergelines import HoughBundler, LaneLines
+
+
+class RLPilot():
+
+    def load(self, model_path):
+        pass
+
+    def shutdown(self):
+        pass
+
+    def train(self, train_gen, val_gen,
+              saved_model_path, epochs=100, steps=100, train_split=0.8,
+              verbose=1, min_delta=.0005, patience=5, use_early_stop=True):
+        pass
+
+
+class RL(RLPilot):
+    def __init__(self, model=None, *args, **kwargs):
+        super(RL, self).__init__(*args, **kwargs)
+        global steering, throttle, steering_hist, throttle_hist, speed, angle
+
+        self.speed = 0.0
+        self.angle = 0.0
+        self.steering = 0.0
+        self.throttle = 0.0
+        # self.top_speed=4.0
+        self.top_speed=1.0
+        self.top_speed=0.1
+        self.steering_hist = []
+        self.throttle_hist = []
+        print("RL init")
+
+    def run(self, img):
+        global steering, throttle, steering_hist, throttle_hist, speed, angle
+
+        ll = LaneLines()
+        lines, roi = ll.process_img(img)
+        if lines is not None:
+          steering, throttle = ll.lrclines(lines,roi)
+        else:
+          steering = 0
+          throttle = 0
+        print("STEER %f THROT %f" % (steering, throttle))
+        return steering, throttle 
+
+        # for Oakland (HSV):
+        # yellow = [[20, 80, 100], [30, 255, 255]]
+
+        # for Simulation (RGB)
+        yellow = [[120, 120, 90], [180, 180, 140]]
+        yellow = [[130, 130, 105], [140, 140, 115]]
+        ylines = ll.process_lines(img,yellow)
+        # print("ylines:")
+        if ylines is None:
+          print("try wider yellow range")
+          # for Oakland (HSV):
+          # yellow = [[20, 0, 100], [35, 255, 255]]
+
+          # for Simulation (RGB)
+          yellow = [[100, 120, 120], [120, 130, 130]]
+          yellow = [[115, 160, 160], [130, 180, 180]]
+          yellow = [[160, 160, 90], [180, 180, 120]]
+          yellow = [[120, 120, 100], [130, 130, 120]]
+          ylines = ll.process_lines(img,yellow)
+        # else:
+          # print(ylines)
+        saturation = 40
+        # oakland
+        white = [[0,0,255-saturation],[255,saturation,255]]
+        # simulation
+        white = [[160,160,160],[190,190,190]]
+        wlines = ll.process_lines(img,white)
+        roi = ll.getROI(img)
+        yline, lwline, rwline = ll.final_lines(roi, ylines, wlines)
+
+        '''
+        super basic throttle control, derive from this Server and 
+        override as needed
+        '''
+        if self.speed < self.top_speed:
+           self.throttle = max(.3 , (self.top_speed - self.speed))
+        else:
+          self.throttle = 0.0
+          self.speed = self.top_speed
+        width = img.shape[1]
+        height = img.shape[0]
+        if yline is None:
+          # return same steering value but reduce speed
+          self.throttle = -0.3 
+          print("x None s %f t -0.3" % self.steering)
+        else:
+            # x1 = line[0][0]
+            # y1 = line[0][1]
+            # x2 = line[1][0]
+            # y2 = line[1][1]
+            # x2 = yline[0][1]
+            x2 = yline[1][1]
+            # 16 values
+            # if (x2 < width / 2):
+            self.steering = 1*((x2 - (width/2)) / (width/2))
+            self.steering = 1.5*((x2 - (height/2)) / (height/2))
+            if self.steering < -1:
+              self.steering = -1
+            elif self.steering > 1:
+              self.steering = 1
+            print("x %d  w %f s %f" % (x2, height/2, self.steering))
+        self.speed += self.throttle
+        self.angle += self.steering 
+
+        # keep track time to complete 360 degrees of history
+        print("RL run; steering %f throttle %f angle %f speed %f " % (self.steering,self.throttle,self.angle, self.speed))
+        return self.steering, self.throttle 
+        

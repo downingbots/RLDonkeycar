@@ -1,0 +1,633 @@
+# https://stackoverflow.com/questions/45531074/how-to-merge-lines-after-houghlinesp
+import numpy as np
+import cv2
+import math
+import os
+import copy
+from stat import S_ISREG, ST_MTIME, ST_MODE, ST_CTIME, ST_ATIME
+from scipy.stats import linregress
+
+class HoughBundler:
+    '''Clasterize and merge each cluster of cv2.HoughLinesP() output
+    a = HoughBundler()
+    foo = a.process_lines(houghP_lines, binary_image)
+    '''
+
+    def get_orientation(self, line):
+        '''get orientation of a line, using its length
+        https://en.wikipedia.org/wiki/Atan2
+        '''
+        orientation = math.atan2(abs((line[0] - line[2])), abs((line[1] - line[3])))
+        return math.degrees(orientation)
+
+    def checker(self, line_new, groups, min_distance_to_merge, min_angle_to_merge):
+        '''Check if line have enough distance and angle to be count as similar
+        '''
+        for group in groups:
+            # walk through existing line groups
+            for line_old in group:
+                # check distance
+                if self.get_distance(line_old, line_new) < min_distance_to_merge:
+                    # check the angle between lines
+                    orientation_new = self.get_orientation(line_new)
+                    orientation_old = self.get_orientation(line_old)
+                    # if all is ok -- line is similar to others in group
+                    if abs(orientation_new - orientation_old) < min_angle_to_merge:
+                        group.append(line_new)
+                        return False
+        # if it is totally different line
+        return True
+
+    def DistancePointLine(self, point, line):
+        """Get distance between point and line
+        http://local.wasp.uwa.edu.au/~pbourke/geometry/pointline/source.vba
+        """
+        px, py = point
+        x1, y1, x2, y2 = line
+
+        def lineMagnitude(x1, y1, x2, y2):
+            'Get line (aka vector) length'
+            lineMagnitude = math.sqrt(math.pow((x2 - x1), 2) + math.pow((y2 - y1), 2))
+            return lineMagnitude
+
+        LineMag = lineMagnitude(x1, y1, x2, y2)
+        if LineMag < 0.00000001:
+            DistancePointLine = 9999
+            return DistancePointLine
+
+        u1 = (((px - x1) * (x2 - x1)) + ((py - y1) * (y2 - y1)))
+        u = u1 / (LineMag * LineMag)
+
+        if (u < 0.00001) or (u > 1):
+            #// closest point does not fall within the line segment, take the shorter distance
+            #// to an endpoint
+            ix = lineMagnitude(px, py, x1, y1)
+            iy = lineMagnitude(px, py, x2, y2)
+            if ix > iy:
+                DistancePointLine = iy
+            else:
+                DistancePointLine = ix
+        else:
+            # Intersecting point is on the line, use the formula
+            ix = x1 + u * (x2 - x1)
+            iy = y1 + u * (y2 - y1)
+            DistancePointLine = lineMagnitude(px, py, ix, iy)
+
+        return DistancePointLine
+
+    def get_distance(self, a_line, b_line):
+        """Get all possible distances between each dot of two lines and second line
+        return the shortest
+        """
+        dist1 = self.DistancePointLine(a_line[:2], b_line)
+        dist2 = self.DistancePointLine(a_line[2:], b_line)
+        dist3 = self.DistancePointLine(b_line[:2], a_line)
+        dist4 = self.DistancePointLine(b_line[2:], a_line)
+
+        return min(dist1, dist2, dist3, dist4)
+
+    def merge_lines_pipeline_2(self, lines):
+        'Clusterize (group) lines'
+        groups = []  # all lines groups are here
+        # Parameters to play with
+        min_distance_to_merge = 30
+        min_angle_to_merge = 30
+        # first line will create new group every time
+        groups.append([lines[0]])
+        # if line is different from existing gropus, create a new group
+        for line_new in lines[1:]:
+            if self.checker(line_new, groups, min_distance_to_merge, min_angle_to_merge):
+                groups.append([line_new])
+
+        return groups
+
+    def merge_lines_segments1(self, lines):
+        """Sort lines cluster and return first and last coordinates
+        """
+        orientation = self.get_orientation(lines[0])
+
+        # special case
+        if(len(lines) == 1):
+            return [lines[0][:2], lines[0][2:]]
+
+        # [[1,2,3,4],[]] to [[1,2],[3,4],[],[]]
+        points = []
+        for line in lines:
+            points.append(line[:2])
+            points.append(line[2:])
+        # if vertical
+        if 45 < orientation < 135:
+            #sort by y
+            points = sorted(points, key=lambda point: point[1])
+        else:
+            #sort by x
+            points = sorted(points, key=lambda point: point[0])
+
+        # return first and last point in sorted group
+        # [[x,y],[x,y]]
+        return [points[0], points[-1]]
+
+    def process_lines(self, lines):
+        '''Main function for lines from cv.HoughLinesP() output merging
+        for OpenCV 3
+        lines -- cv.HoughLinesP() output
+        img -- binary image
+        '''
+        lines_x = []
+        lines_y = []
+        # for every line of cv2.HoughLinesP()
+        if lines is not None:
+            for line_i in [l[0] for l in lines]:
+                orientation = self.get_orientation(line_i)
+                # if vertical
+                if 45 < orientation < 135:
+                    lines_y.append(line_i)
+                else:
+                    lines_x.append(line_i)
+        else:
+          return None
+
+        lines_y = sorted(lines_y, key=lambda line: line[1])
+        lines_x = sorted(lines_x, key=lambda line: line[0])
+        merged_lines_all = []
+
+        # for each cluster in vertical and horizantal lines leave only one line
+        for i in [lines_x, lines_y]:
+                if len(i) > 0:
+                    groups = self.merge_lines_pipeline_2(i)
+                    merged_lines = []
+                    for group in groups:
+                        merged_lines.append(self.merge_lines_segments1(group))
+
+                    merged_lines_all.extend(merged_lines)
+
+        return merged_lines_all
+
+
+class LaneLines:
+
+  #############################
+  # derived from https://bryceboe.com/2006/10/23/line-segment-intersection-algorithm/
+
+  def ccw(self, A,B,C):
+    return (C[1]-A[1]) * (B[0]-A[0]) > (B[1]-A[1]) * (C[0]-A[0])
+  # return (C.y-A.y) * (B.x-A.x) > (B.y-A.y) * (C.x-A.x)
+
+  # Return true if line segments AB and CD intersect
+  def intersect(self, line1, line2):
+    A = line1[0]
+    B = line1[1]
+    C = line2[0]
+    D = line2[1]
+    return self.ccw(A,C,D) != self.ccw(B,C,D) and self.ccw(A,B,C) != self.ccw(A,B,D)
+
+  #############################
+  # from https://github.com/dmytronasyrov/CarND-LaneLines-P1/blob/master/P1.ipynb
+
+  def left_right_lines(self,lines):
+    lines_all_left = []
+    lines_all_right = []
+    slopes_left = []
+    slopes_right = []
+    
+    if lines is not None:
+      for line in lines:
+        for x1, y1, x2, y2 in line:
+            slope = (y2 - y1) / (x2 - x1)
+            
+            if slope > 0:
+                lines_all_right.append(line)
+                slopes_right.append(slope)
+            else:
+                lines_all_left.append(line)
+                slopes_left.append(slope)
+                
+    filtered_left_lns = self.filter_lines_outliers(lines_all_left, slopes_left, True)
+    filtered_right_lns = self.filter_lines_outliers(lines_all_right, slopes_right, False)
+    
+    return filtered_left_lns, filtered_right_lns
+
+  def filter_lines_outliers(self,lines, slopes, is_left, min_slope = 0.5, max_slope = 0.9):
+    if len(lines) < 2:
+        return lines
+    
+    lines_no_outliers = []
+    slopes_no_outliers = []
+    
+    for i, line in enumerate(lines):
+        slope = slopes[i]
+        
+        if min_slope < abs(slope) < max_slope:
+            lines_no_outliers.append(line)
+            slopes_no_outliers.append(slope)
+
+    slope_median = np.median(slopes_no_outliers)
+    slope_std_deviation = np.std(slopes_no_outliers)
+    filtered_lines = []
+    
+    for i, line in enumerate(lines_no_outliers):
+        slope = slopes_no_outliers[i]
+        intercepts = np.median(line)
+
+        if slope_median - 2 * slope_std_deviation < slope < slope_median + 2 * slope_std_deviation:
+            filtered_lines.append(line)
+
+    return filtered_lines
+
+  def median(self, lines, prev_ms, prev_bs):
+    if prev_ms is None:
+        prev_ms = []
+        prev_bs = []
+    
+    xs = []
+    ys = []
+    xs_med = []
+    ys_med = []
+    m = 0
+    b = 0
+
+    for line in lines:
+        for x1, y1, x2, y2 in line:
+            xs += [x1, x2]
+            ys += [y1, y2]
+    
+    if len(xs) > 2 and len(ys) > 2:
+#         m, b = np.polyfit(xs, ys, 1)
+        m, b, r_value_left, p_value_left, std_err = linregress(xs, ys)
+
+        if len(prev_ms) > 0:
+            prev_ms.append(m)
+            prev_bs.append(b)
+        else:
+            return np.poly1d([m, b])
+    
+    if len(prev_ms) > 0:
+        return np.poly1d([np.average(prev_ms), np.average(prev_bs)])
+    else:
+        return None
+
+  #############################
+  # from https://github.com/dmytronasyrov/CarND-LaneLines-P1/blob/master/P1.ipynb
+  def getROI(self,img):
+    # w 160 h 120
+    # remove top 40 lines
+    width = img.shape[1]
+    height = img.shape[0]
+    # print("w %d h %d" % (width, height))
+    roi_img = img[50:height, 0:width]
+    return roi_img
+
+  ###############
+
+  def linelen(self,line):
+     if line is None:
+       return -1
+     return math.hypot(line[0][0] - line[1][0], line[0][1] - line[1][0])
+
+
+
+  def orientation(self, line):
+        '''get orientation of a line, using its length
+        https://en.wikipedia.org/wiki/Atan2
+        '''
+        orientation = math.atan2(abs((line[0][0] - line[1][0])), abs((line[0][1] - line[1][1])))
+        return math.degrees(orientation)
+
+  def scale_x(self, x1, y1, x2, y2, x3, y3):
+    dx = (x1 - x2)
+    dy = (y1 - y2)
+    diffy = y3 - y1
+    if dy == 0:
+      newx = x1 + diffy
+    else:
+      newx = x1 + diffy*dx/dy
+    return int((newx + x3)/2)
+
+
+  def final_lines(self, img, yellow, white):
+    # do look for horizontal lines, and make a single point in middle
+    # if multiple horizontal lines, connect the dots to make a new line
+    # do average of close nearly parallel lines
+      
+    yfinal = None
+    if yellow is None:
+      yfinal = yellow
+    elif len(yellow) == 1:
+      yfinal = yellow[0]
+    else:
+      horiz = []
+      vert = []
+      for line in yellow:
+        x1 = line[0][0]
+        y1 = line[0][1]
+        x2 = line[1][0]
+        y2 = line[1][1]
+        if (abs(y2-y1)*2 < abs(x2 - x1)):
+          # horizontal
+          horiz.append(line)
+        else:
+          # vertical or tweaner
+          vert.append(line)
+          if yfinal is None or self.linelen(line) > self.linelen(yfinal):
+            yfinal = line
+            # print("yfinal:")
+            # print(yfinal)
+      maxdeltaorient = 10
+      # combine lines
+      if vert is not None:
+        for vline in vert:
+          # if (vline == yfinal).all():
+          if np.array_equal(vline, yfinal):
+            pass
+          else:
+            # case 0: vline intersect yfinal 
+            if self.intersect(vline,yfinal):
+              pass
+            # case 1: vline is below yfinal 
+            elif max(vline[0][1],vline[1][1])<min(yfinal[0][1],yfinal[1][1]):
+              # append the two?
+              tmp = yfinal
+              if yfinal[0][1] < yfinal[1][1]:
+                tmp[0][0] = vline[0][0]
+                tmp[0][1] = vline[0][1]
+              else:
+                tmp[1][0] = vline[1][0]
+                tmp[1][1] = vline[1][1]
+
+              tmporient = self.orientation(tmp)
+              finorient = self.orientation(yfinal)
+              if (abs(tmporient-finorient) < maxdeltaorient):
+                yfinal = tmp
+            # case 2: vline is above yfinal 
+            elif min(vline[0][1],vline[1][1]) > max(yfinal[0][1],yfinal[1][1]):
+              # append the two?
+              tmp = yfinal
+              if yfinal[0][1] > yfinal[1][1]:
+                tmp[0][0] = vline[0][0]
+                tmp[0][1] = vline[0][1]
+              else:
+                tmp[1][0] = vline[1][0]
+                tmp[1][1] = vline[1][1]
+
+              tmporient = self.orientation(tmp)
+              finorient = self.orientation(yfinal)
+              if (abs(tmporient-finorient) < maxdeltaorient):
+                yfinal = tmp
+
+            # case 3: vline and yfinal are similar lengths, parallel lines
+            # probably both sides of yellow line. average them.
+            elif (self.linelen(vline) >= .75 * self.linelen(yfinal) and
+              abs(self.orientation(vline) - self.orientation(yfinal)) < maxdeltaorient):
+              # set top
+              if yfinal[0][1] > yfinal[1][1]:
+                if yfinal[0][1] > vline[0][1]:
+                  yfinal[0][0] = self.scale_x(vline[0][0], vline[0][1], 
+                        vline[1][0], vline[1][1], yfinal[0][0], yfinal[0][1])
+                else:
+                  yfinal[0][0] = self.scale_x(yfinal[0][0], yfinal[0][1], 
+                        yfinal[1][0], yfinal[1][1], vline[0][0], vline[0][1])
+              else:
+                if yfinal[1][1] > vline[1][1]:
+                  yfinal[1][0] = self.scale_x(vline[0][0], vline[0][1], 
+                        vline[1][0], vline[1][1], yfinal[1][0], yfinal[1][1])
+                else:
+                  yfinal[1][0] = self.scale_x(yfinal[0][0], yfinal[0][1], 
+                        yfinal[1][0], yfinal[1][1], vline[1][0], vline[1][1])
+              # set bottom
+              if yfinal[0][1] < yfinal[1][1]:
+                if yfinal[1][1] < vline[1][1]:
+                  yfinal[0][0] = self.scale_x(yfinal[0][0], yfinal[0][1], 
+                        yfinal[1][0], yfinal[1][1], vline[0][0], vline[0][1])
+                else:
+                  yfinal[0][0] = self.scale_x(vline[0][0], vline[0][1], 
+                        vline[1][0], vline[1][1], yfinal[0][0], yfinal[0][1])
+              else:
+                if yfinal[1][1] > vline[1][1]:
+                  yfinal[1][0] = self.scale_x(vline[0][0], vline[0][1], 
+                        vline[1][0], vline[1][1], yfinal[1][0], yfinal[1][1])
+                else:
+                  yfinal[1][0] = self.scale_x(yfinal[0][0], yfinal[0][1], 
+                        yfinal[1][0], yfinal[1][1], vline[1][0], vline[1][1])
+
+
+      if horiz is not None:
+        for hline in horiz:
+   
+          dist = math.hypot(hline[0][0]-hline[1][0], hline[0][1]-hline[1][1])
+          if dist > 30:
+            continue
+          midptx = int((hline[0][0] + hline[1][0])/2)
+          midpty = int((hline[0][1] + hline[1][1])/2)
+          
+          # case 1 midpt below 
+          if yfinal is None:
+              yfinal = hline # get shape right
+              yfinal[0][0] = midptx
+              yfinal[0][1] = midpty
+              yfinal[0][0] = midptx
+              yfinal[0][1] = midpty+1
+          elif midpty < min(yfinal[0][1], yfinal[1][0]):
+            if yfinal[0][1] < yfinal[1][0]:
+              tmp = yfinal
+              tmp[0][0] = midptx
+              tmp[0][1] = midpty
+            else:
+              tmp = yfinal
+              tmp[1][0] = midptx
+              tmp[1][1] = midpty
+            tmporient = self.orientation(tmp)
+            finorient = self.orientation(yfinal)
+            if (abs(tmporient-finorient) < maxdeltaorient):
+              yfinal = tmp
+          elif midpty > max(yfinal[0][1], yfinal[1][0]):
+            if yfinal[0][1] > yfinal[1][0]:
+              tmp = yfinal
+              tmp[0][0] = midptx
+              tmp[0][1] = midpty
+            else:
+              tmp = yfinal
+              tmp[1][0] = midptx
+              tmp[1][1] = midpty
+            tmporient = self.orientation(tmp)
+            finorient = self.orientation(yfinal)
+            if (abs(tmporient-finorient) < maxdeltaorient):
+              yfinal = tmp
+
+    # for white lines, look for equidistant LR lines from yellow with opp slope
+    lwfinal = None
+    rwfinal = None
+    if white is not None:
+     for wline in white:
+      if yfinal is None:
+        worient = self.orientation(wline)
+        if worient > 90:
+          if lwfinal is None:
+            lwfinal = wline
+          elif self.linelen(wline) > self.linelen(lwfinal):
+            lwfinal = wline
+        else:
+          if rwfinal is None:
+            rwfinal = wline
+          elif self.linelen(wline) > self.linelen(rwfinal):
+            rwfinal = wline
+      elif max(wline[0][0], wline[1][0]) < min(yfinal[0][0], yfinal[1][0]):
+        if lwfinal is None:
+          lwfinal = wline
+        elif self.linelen(wline) > self.linelen(lwfinal):
+          lwfinal = wline
+      elif min(wline[0][0], wline[1][0]) > max(yfinal[0][0], yfinal[1][0]):
+        if rwfinal is None:
+          rwfinal = wline
+        elif self.linelen(wline) > self.linelen(rwfinal):
+          rwfinal = wline
+      else:
+        worient = self.orientation(wline)
+        yorient = self.orientation(yfinal)
+        if self.intersect(wline,yfinal):
+          continue
+        if worient < yorient:
+          # left
+          if lwfinal is None:
+            lwfinal = wline
+          elif self.linelen(wline) > self.linelen(lwfinal):
+            lwfinal = wline
+        else:
+          # right
+          if rwfinal is None:
+            rwfinal = wline
+          elif self.linelen(wline) > self.linelen(rwfinal):
+            rwfinal = wline
+    print("yellow:")
+    print(yfinal)
+    # print("white-left:")
+    # print(lwfinal)
+    # print("white-right:")
+    # print(rwfinal)
+    return yfinal, lwfinal, rwfinal
+
+  def binary_hsv_mask(self, img, color_range):
+    lower = np.array(color_range[0])
+    upper = np.array(color_range[1])
+    return cv2.inRange(img, lower, upper)
+
+  def process_lines(self, img, color):
+
+    hsv_img = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+    # region of interest
+    # For Simulation
+    # roi = self.getROI(img)
+    # For Oakland
+    roi = self.getROI(hsv_img)
+    cmask = self.binary_hsv_mask(roi, color)
+    cimg = cv2.bitwise_and(roi, roi, mask = cmask)
+    # cv2.imshow('yellow image',cimg)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+    edges = cv2.Canny(cimg, 100, 200) # [100,200][30, 130][150,255]
+    # cv2.imshow('edges',edges)
+    # cv2.waitKey(0)
+    # cv2.destroyAllWindows()
+
+    # ylines = cv2.HoughLinesP(yedges*roi, 0.5, np.pi/180, 20, None, 180, 120)
+    # rho – Distance resolution of the accumulator in pixels.
+    # theta – Angle resolution of the accumulator in radians.
+    # threshold – Accumulator threshold parameter. 
+    # minLineLength – Minimum line length. Line segments shorter than that are rejected.
+    # maxLineGap – Maximum allowed gap between points on the same line to link them.
+    # ylines = cv2.HoughLinesP(yedges, 0.5, np.pi/180, 20, None, 10, 120)
+    lines = cv2.HoughLinesP(edges, 1, np.pi/90, 10, 10, 10, 10)
+#    croi = copy.deepcopy(roi)
+#    if lines is not None:
+#      for line in lines:
+#        for x1,y1,x2,y2 in line:
+#          cv2.line(croi,(x1,y1),(x2,y2),(0,255,0),2)
+#    cv2.imshow('lines', croi)
+#    cv2.waitKey(0)
+#    cv2.destroyAllWindows()
+
+#    filtered_left_lns, filtered_right_lns = self.left_right_lines(lines)
+#    croi = copy.deepcopy(roi)
+#    if filtered_left_lns is not None:
+#      for line in filtered_left_lns:
+#        for x1,y1,x2,y2 in line:
+#          cv2.line(croi,(x1,y1),(x2,y2),(0,255,0),2)
+#    if filtered_right_lns is not None:
+#      for line in filtered_right_lns:
+#        for x1,y1,x2,y2 in line:
+#          cv2.line(croi,(x1,y1),(x2,y2),(0,255,0),2)
+#    cv2.imshow('ymergedlines',croi)
+#    cv2.waitKey(0)
+#    cv2.destroyAllWindows()
+
+    hb = HoughBundler()
+    mergedlines = hb.process_lines(lines)
+    '''
+    croi = copy.deepcopy(roi)
+    if mergedlines is not None:
+      for line in mergedlines:
+        x1 = line[0][0]
+        y1 = line[0][1]
+        x2 = line[1][0]
+        y2 = line[1][1]
+        cv2.line(croi,(x1,y1),(x2,y2),(0,255,0),2)
+    cv2.imshow('ymergedlines',croi)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
+    '''
+    return mergedlines
+
+  def image_path(self, tub_path, frame_id):
+        return os.path.join(tub_path, str(frame_id) + "_cam-image_array_.jpg")
+
+  def test_tub(self, tub_path):
+        seqs = [ int(f.split("_")[0]) for f in os.listdir(tub_path) if f.endswith('.jpg') ]
+        seqs.sort()
+        entries = ((os.stat(self.image_path(tub_path, seq))[ST_ATIME], seq) for seq in seqs)
+
+        (last_ts, seq) = next(entries)
+        clips = [[seq]]
+        for next_ts, next_seq in entries:
+            if next_ts - last_ts > 100:  #greater than 1s apart
+                clips.append([next_seq])
+            else:
+                clips[-1].append(next_seq)
+            last_ts = next_ts
+
+        for clip in clips:
+          for imgseq in clip:
+            # if imgseq < 2795:
+              # continue
+            imgname = self.image_path(tub_path, imgseq)
+            img = cv2.imread(imgname)
+            yellow = [[20, 80, 100], [35, 255, 255]]
+            ylines = self.process_lines(img,yellow)
+            if ylines is None:
+              yellow = [[20, 0, 100], [30, 255, 255]]
+              ylines = self.process_lines(img,yellow)
+
+            saturation = 40
+            white = [[0,0,255-saturation],[255,saturation,255]]
+            wlines = self.process_lines(img,white)
+            roi = self.getROI(img)
+            yline, lwline, rwline = self.final_lines(roi, ylines, wlines)
+
+            if yline is not None:
+              cv2.line(roi,(yline[0][0], yline[0][1]),(yline[1][0],yline[1][1]),(0,255,0),2)
+            if lwline is not None:
+              cv2.line(roi,(lwline[0][0], lwline[0][1]),(lwline[1][0],lwline[1][1]),(0,255,0),2)
+            if rwline is not None:
+              cv2.line(roi,(rwline[0][0], rwline[0][1]),(rwline[1][0],rwline[1][1]),(0,255,0),2)
+# to make movie, run:
+# ffmpeg -framerate 4 -i /tmp/movie/1%04d_cam-image_array_.jpg -c:v libx264 -profile:v high -crf 20 -pix_fmt yuv420p output.mp4
+            out = self.image_path("/tmp/movie", imgseq)
+            cv2.imwrite(out, roi)
+            # cv2.imshow(imgname,roi)
+            # cv2.waitKey(0)
+            # cv2.destroyAllWindows()
+            print("wrote %s" % (out))
+
+
+
+y = LaneLines()
+# y.test_tub("/home/ros/rope.dk/tub_2_18-03-17/")
+y.test_tub("/home/ros/d2/data/tub_6_18-06-10.bck2")
