@@ -1,0 +1,3 @@
+[console_scripts]
+donkey = donkeycar.management.base:execute_from_command_line
+
