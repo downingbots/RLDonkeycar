@@ -3,7 +3,7 @@
 
 ### Overview
 
-The High-Level Goal is to plop down a donkeycar (with minor hardward enhancements) on any track with a yellow center line and white lane lines and watch the donkeycar improve its track time each time it drives around the track. In its current form, the RLDonkeycar needs a human minder as it drives around the track, and the ability to use reinforcement learning to improve track-times is hardware-limited.
+The high-level goal is to plop down a donkeycar (with minor hardward enhancements) on any track with a yellow center line and white lane lines and watch the donkeycar improve its track time each time it drives around the track. In its current form, the RLDonkeycar needs a human minder as it drives around the track, and the ability to use reinforcement learning to improve track-times is hardware-limited.
 
 An example early run by the RLDonkecar (filmed by Yana Bezus) can be seen [here.](https://drive.google.com/open?id=1TIjjgSAZopL1PxoWHfXPwQQFAPlu5QcM)
 
@@ -18,10 +18,12 @@ In a little more detail, the goal is:
 #### Software/Hardware Architecture
 
 The RLDonkeycar has minimal hardward changes from the original donkeycar design: 
-* An additional raspberry pi with battery and SD-card
+* An additional raspberry pi 3b+ with battery and SD-card
 * A short (6") ethernet cable between the pi's 
 * Stand-offs to stack the raspberry pi's
-![RLDonkeycar](https://github.com/downingbots/RLDonkeycar/RLDonkeycar.jpg)
+
+When assembled, the RLDonkeycar should look like:
+![RLDonkeycar](https://github.com/downingbots/RLDonkeycar/blob/master/RLDonkeycar.jpg)
 
 The software features:
 * on-car real-time control of donkeycar driving based upon OpenCV line-following or execution of Keras Neural Net on other Raspberry Pi 3B+ (aka "Control Pi")
@@ -46,7 +48,9 @@ The software features:
 ### High-Level Results
 
 #### Original Donkeycar Code
-* The immitation/supervised learning in the original donkeycar code could learn how to autonomously drive around the track after training on data obained from as few as 3 manually driven trips around the track and could drive at decent speed. With relatively little training data, the trained car would effectively memorize its way around the course by observing features off the track like posts, cones, chairs, etc. Such over-fitting on features would result in poor performance at events with large numbers of spectators, when such features could be obfuscated. More training in different scenarios and lighting conditions could greatly improve the intelligence, reliability and performance of the donkeycar. The better the human driver, the better the results.
+The RLDonkeycar code was cloned back in March 2018 and then enhanced with new RL code. The RLDonkeycar can still use the imitation learning provided for the original donkeycar. Just invoke the code as documented on donkeycar.com and use a remote control to drive the car around the track.
+
+The imitation learning in the original donkeycar code could learn how to autonomously drive around the track after training on data obained from as few as 3 manually driven trips around the track and could drive at decent speed. With relatively little training data, the trained car would effectively memorize its way around the course by observing features off the track like posts, cones, chairs, etc. Such over-fitting on features would result in poor performance at events with large numbers of spectators, when such features could be obfuscated. More training in different scenarios and lighting conditions could greatly improve the intelligence, reliability and performance of the donkeycar. The better the human driver, the better the results.
 
 #### OpenCV Donkeycar Line-Following
 * The OpenCV line-following is slower than the NN in Frames-per-second (fps) in the original donkeycar code. Even with the simplest line-following agorithm, the donkeycar could only get around the track at the slowest speed the car could drive. 
@@ -55,9 +59,9 @@ The software features:
 
 #### Reinforcement Learning
 
-* Unfortunately, early attempts at simple RL algorithms did not do well. Switched to PPO (implemented using Keras), which succeeded in learning line-following instead of overfitting on the training data. The reward function is a function of speed and distance from the middle dashed line of the track as determined by the OpenCV code.
-* So, the raspberry pi can store frames in a cache that are then trained in a mini-batch of at most 20 images or until the openCV state computation determines that the car has left the track. [A good introduction to PPO is by Arxiv Insights](https://www.youtube.com/watch?v=5P7I-xPq8u8)
-* The Raspberry Pi 3B+ could only run the PPO algorithm at about 1 FPS. At this frame rate, the donkeycar couldn't get around the track much faster than the OpenCV line-following algorithm
+* Unfortunately, early attempts at simple RL algorithms did not do well. After Switching to PPO (implemented using Keras), the RLDonkeycar succeeded in learning line-following instead of overfitting on the training data. The reward function is a function of speed and distance from the middle dashed line of the track as determined by the OpenCV code.
+* So, the raspberry pi can store frames in a cache that are then trained in a mini-batch of at most 20 images or until the openCV state computation determines that the car has left the track. 
+* The Raspberry Pi 3B+ could only run the PPO algorithm at about 1 FPS. At this frame rate, the donkeycar couldn't get around the track much faster than the OpenCV line-following algorithm.
 * Periodically, update the Control Pi's Keras model weights with those recently computed in real-time at the RLPi.  When the RL weights are updated, the NN would increase the throttle in order to increase the reward. Unfortunately, the battery power would decrease resulting in the throttle decreasing before the next RL weight update. Such real-world issues don't show up in the simulations. The net result in throttle gain was negligble in the current tuning. The throttle gain can be tweaked by changing the reward function, but can easily result in the throttle exceeding what the raspberry pi can handle. Instead of fine-tuning, I intend to follow my "Next Steps."
 
 ### Next Steps
@@ -101,38 +105,37 @@ The donkeycar code was cloned somewhere around March 20, 2018. As my laptop was 
  
 #### The RL Code
 
-The RL code is mostly in files starting with RL inside the donkeycar/donkeycar/parts dirctory:
+The RL code is mostly in files starting with RL inside the [donkeycar/donkeycar/parts](https://github.com/downingbots/RLDonkeycar/tree/master/donkeycar/donkeycar/parts) dirctory:
 
-* RLControlPi.py: the logic that changes the mode between the OpenCV code and the RL code. Sends/recieves message to/from the RLPi.
+* [RLControlPi.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLControlPi.py): the logic that changes the mode between the OpenCV code and the RL code. Sends/recieves message to/from the RLPi.
 
-* RL.py: a wrapper around some RL classes to integrate with manage.py  
+* [RL.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RL.py): a wrapper around some RL classes to integrate with manage.py  
+* [RLPi.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLPi.py): the main code executed at the RLPi. Loops around receiving and caching messages from the ControlPi, processing batches of messages ready for PPO, and sending the updated weights to the ControlPi.
 
-* RLPi.py: the main code executed at the RLPi. Loops around receiving and caching messages from the ControlPi, processing batches of messages ready for PPO, and sending the updated weights to the ControlPi.
+* [RLMsg.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLMsg.py): The ZMQ messages. ZMQ must be installed on the pis.
 
-* RLMsg.py: The ZMQ messages. ZMQ must be installed on the pis.
+* [RLConfig.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLConfig.py): a config file used on both pi's for RL parameters. See below for details.
 
-* RLConfig.py: a config file used on both pi's for RL parameters. See below for details.
+* [RLOpenCV.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLOpenCV.py): the OpenCV line-following code. HoughLinesP are used to find lines. These lines are bundled together into Left/Center/Right lines. If a vanishing point is found (e.g., during straight-aways on the track), yellow and white colors are computed for the center lines and lane lines respectively.
 
-* RLOpenCV.py: the OpenCV line-following code. HoughLinesP are used to find lines. These lines are bundled together into Left/Center/Right lines. If a vanishing point is found (e.g., during straight-aways on the track), yellow and white colors are computed for the center lines and lane lines respectively.
-
-* RLPPO.py: the PPO algorithm as implemented by others with minimal changes. The code is derived from [the initial framework](https://github.com/jaara/AI-blog/blob/master/CartPole-A3C.py) and [the PPO implementation](https://github.com/OctThe16th/PPO-Keras/blob/master/Main.py)
-* RLKeras.py: the code create the actor and critic models, to get weights, run fit, randomize output for the Keras models, etc
-* RLControlPi2.py : Obsolete. Used for debugging an earlier version of the code. The code not run as a result of a parameter in RLConfig.
+* [RLPPO.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLPPO.py): the PPO algorithm as implemented by others with minimal changes. The code is derived from [the initial framework](https://github.com/jaara/AI-blog/blob/master/CartPole-A3C.py) and [the PPO implementation.](https://github.com/OctThe16th/PPO-Keras/blob/master/Main.py)
+* [RLKeras.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLKeras.py): the code create the actor and critic models, to get weights, run fit, randomize output for the Keras models, etc
+* [RLControlPi2.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLControlPi2.py) : Obsolete. Used for debugging an earlier version of the code. The code not run as a result of a parameter in RLConfig.
 
 Other modified files:
-* manage.py:  modified to support the command "python manage.py drive --model rl" and to integrate the RL code
-* donkeygymsim.py: supports the newest openGym-compatible Unity siumulator
-* tcp_server.py: a tcp socket server (by Tawn Kramer) to talk to the unity donkey simulator
+* [manage.py](https://github.com/downingbots/RLDonkeycar/blob/master/d2/manage.py):  modified to support the command "python manage.py drive --model rl" and to integrate the RL code
+* [donkeygymsim.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/management/donkeygymsim.py): supports the newest openGym-compatible Unity siumulator
+* [tcp_server.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/management/tcp_server.py): a tcp socket server (by Tawn Kramer) to talk to the unity donkey simulator
 
 #### RL Model and State Files
 
-The d2/model directory is the repository for state stored between runs.
+The [d2/model](https://github.com/downingbots/RLDonkeycar/tree/master/d2/models) directory is the repository for state stored between runs.
 
 The PPO models for the actor are stored in: rlpilot_actor  rlpilot_critic
 
 donkeystate.json is a human-readable and editable json file track-specific state and throttle starting points.  Track-specific state includes white/yellow color computations and lane width. The "minThrottle" is the starting throttle to look at when using Optical Flow to determine whether moving. In the current implemenation, the value can change dramatically based upon whether you are running in simulation (set to near-zero), or running with a bad or drained battery.  If you change batteries, you proably need to manually edit the file to reset the minThrottle (to around 30 with my car / battery.)
 
-#### Configuration Parameters in RLConfig.py
+#### Configuration Parameters in [RLConfig.py](https://github.com/downingbots/RLDonkeycar/blob/master/donkeycar/donkeycar/parts/RLConfig.py)
 
 Lots of parameters in this file are obsolete, constants, or reasonably tuned. Others may require changes.
 
