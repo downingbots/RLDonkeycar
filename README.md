@@ -1,11 +1,11 @@
-# RLDonkeycar: Real-time reinforcement learning of a donkeycar with two raspberry pi's
+# RLDonkeycar
+## Real-time reinforcement learning of a donkeycar with two raspberry pi's
 
 ### Overview
 
 The High-Level Goal is to plop down a donkeycar (with minor hardward enhancements) on any track with a yellow center line and white lane lines and watch the donkeycar improve its track time each time it drives around the track. In its current form, the RLDonkeycar needs a human minder as it drives around the track, and the ability to use reinforcement learning to improve track-times is hardware-limited.
 
-An example early run by the RLDonkecar (filmed by Yana Bezus) can be seen here:
-https://drive.google.com/open?id=1TIjjgSAZopL1PxoWHfXPwQQFAPlu5QcM
+An example early run by the RLDonkecar (filmed by Yana Bezus) can be seen [here.](https://drive.google.com/open?id=1TIjjgSAZopL1PxoWHfXPwQQFAPlu5QcM)
 
 In a little more detail, the goal is:
 * to plop the donkeycar down on any track that it had never seen before.
@@ -26,7 +26,7 @@ The RLDonkeycar has minimal hardward changes from the original donkeycar design:
 The Software features:
 * on-car real-time control of donkeycar driving based upon OpenCV line-following or execution of Keras Neural Net on other Raspberry Pi 3B+ (aka "Control Pi")
 * on-car real-time supervised learning or reinforcement learning (RL) on one Raspberry Pi 3B+ (aka RLPi.) 
-* uses Keras RL implementation based on OpenAI's Proximal Policy Optimization (PPO https://arxiv.org/pdf/1707.06347.pdf). A good introduction to PPO is available on YouTube by Arxiv Insights at https://www.youtube.com/watch?v=5P7I-xPq8u8 . Briefly, PPO is a gradient descent algorithm with an actor-critic component and a reward function based upon a history of results. 
+* uses Keras RL implementation based on OpenAI's Proximal Policy Optimization ([PPO paper](https://arxiv.org/pdf/1707.06347.pdf)). A good introduction to PPO is available on [YouTube by Arxiv Insights.](https://www.youtube.com/watch?v=5P7I-xPq8u8) Briefly, PPO is a gradient descent algorithm with an actor-critic component and a reward function based upon a history of results. 
 * periodic update of the Control Pi's Keras model weights computed at RLPi 
 * uses same code to run with the donkey-car simulation
 
@@ -64,7 +64,7 @@ The Software features:
 
 * Use one or two NVidia Jetson Nanos and a raspberry pi 3+. The raspberry pi 3+ would provide the wi-fi. Ideally the Jetson Nano will be used to run the Control Pi as parallelism can be exploited during execution the PPO neural net. Improved frame rates should increase the achievable throttle speed.  Using the raspberry pi for training is accepatable as training is done asynchronously and can shed loads by strategically dropping frames if it can't keep up with the Jetson nano.
 
-* To address the battery issues, the next step is to add a rotary encoder and pid based upon the work done by Alan Wells ( https://www.bountysource.com/issues/49439689-rotary-encoder-updates ). This will enable the donkeycar to travel at the desired speed despite a draining battery without making the neural net more complex.
+* To address the battery issues, the next step is to add a rotary encoder and pid based upon the [work done by Alan Wells.]( https://www.bountysource.com/issues/49439689-rotary-encoder-updates) This will enable the donkeycar to travel at the desired speed despite a draining battery without making the neural net more complex.
 
 ### Acknowledgements
 
@@ -85,25 +85,25 @@ To modify the donkeycar to run the RL version, buy:
 * connect the raspberry pis with a 6" ethernet cable. Tie the cable back so it is ouside the field of view of the camera.
 
 Then download the code from this github repository onto both raspberry pi's. This code is derived from an old fork of the donkeycar github. The code in the d2 directory is derived from the "drive script" created after running the "donkey createcar ~/mycar". The file d2/manage.py has been modified to accept running the following at the ControlPi:
-    python manage.py drive --model rl
+* python manage.py drive --model rl
 
-To run with the Unity-based simulator, use the version of the simulator designed to run with the OpenAI Gym ( https://github.com/tawnkramer/donkey_gym ). Code has been changed to use this version that supports a closed-circuit donkeycar track and the ability to reset the car.  The drive script has been modified to accept running the following at the ControlPi:
-    donkey sim --type=rl 
+To run with the Unity-based simulator, use [the version of the simulator designed to run with the OpenAI Gym.](https://github.com/tawnkramer/donkey_gym). Code has been changed to use this version that supports a closed-circuit donkeycar track and the ability to reset the car.  The drive script has been modified to accept running the following at the ControlPi:
+* donkey sim --type=rl 
 
 To run the RL code on the RLPi run:
-    python RLPi
+* python RLPi
 
 Then put the car down near the middle of the track and start training in real-time.
 
 #### Based on an Old Donkeycar Github Clone
 
-The donkeycar code was cloned somewhere around March 20, 2018. As my laptop was dealing with incompatible versions of some of the dependencies like keras, some of the code were customized for my laptop. There have been hundreds of commits to the donkeycar github repository since the clone.  Most of the new code to support reinforcement learning was separated into new files beginning with RL in the parts directory. A few integration points like manage.py were also modified. So, it is likely possible to update the code to the latest donkeycar version and integrate the code changes, this has not been done at this point in time. The immediate plans is to work around the main limitations in the current hardware - upgrading to use a Jetson Nano and to support an encoder - at which point, the code might just diverge.  Before such divergence, it makes sense to upload the RL code so it can be run on a donkeycar with minimal changes.
+The donkeycar code was cloned somewhere around March 20, 2018. As my laptop was dealing with incompatible versions of some of the dependencies like keras, some of the code were customized for my laptop. There have been hundreds of commits to the donkeycar github repository since the clone.  Most of the new code in the RLDonkeycar repository to support reinforcement learning was separated into new files beginning with RL in the parts directory. A few integration points like manage.py were also modified. So, it is likely possible to update the code to the latest donkeycar version and integrate the code changes, this has not been done at this point in time. The immediate plans is to work around the main limitations in the current hardware - upgrading to use a Jetson Nano and to support an encoder - at which point, the code might just diverge.  Before such divergence, it makes sense to upload the RL code so it can be run on a donkeycar with minimal changes.
  
 #### The RL Code
 
 The RL code is mostly in files starting with RL inside the donkeycar/donkeycar/parts dirctory:
 
-* RLControlPi.py : the logic that changes the mode between the OpenCV code and the RL code. Sends/recieves message to/from the RLPi.
+* RLControlPi.py: the logic that changes the mode between the OpenCV code and the RL code. Sends/recieves message to/from the RLPi.
 
 * RL.py: a wrapper around some RL classes to integrate with manage.py  
 
@@ -121,7 +121,6 @@ The RL code is mostly in files starting with RL inside the donkeycar/donkeycar/p
 
 Other modified files:
 * manage.py:  modified to support the command "python manage.py drive --model rl" and to integrate the RL code
-
 * donkeygymsim.py: supports the newest openGym-compatible Unity siumulator
 * tcp_server.py: a tcp socket server (by Tawn Kramer) to talk to the unity donkey simulator
 
