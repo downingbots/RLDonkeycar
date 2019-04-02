@@ -79,7 +79,7 @@ First thanks to Will Roscoe and Adam Conway for the initial donkeycar code, donk
 
 Thanks to Carlos Uranga at [DeepRacing](http://deepracing.com/). His efforts have created a space to develop and test autonomous RC cars on a regular basis. As of April 2019, DeepRacing meets bi-weekly at [TheShop.Build in San Jose]( https://theshop.build/San-Jose )
 
-Thanks to Chris Anderson who hosts [DYIRobocars](https://diyrobocars.com/ ). These quarterly events draw hundreds of spectators and a dozen or more cars. It is fascinating to watch cars that would normally circumnavigate the track fail to handle to the change of scenery due to the number of spectators.
+Thanks to Chris Anderson who hosts [DIYRobocars](https://diyrobocars.com/ ). These quarterly events draw hundreds of spectators and a dozen or more cars. It is fascinating to watch cars that would normally circumnavigate the track fail to handle to the change of scenery due to the number of spectators.
 
 ### Using the Reinforcement Learning Code
 
