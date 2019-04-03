@@ -168,6 +168,6 @@ To tune PPO processing in batches, tune the values for:
 * Q_LEN_MAX = 250     # size of the cache
 * Q_FIT_BATCH_LEN_THRESH = 50  # number of messages used to micro-batch fit()
 
-The current reward function for an individual message/image is reward(distance_from_center) * (1 + cfg.THROTTLE_BOOST * throttle). See code in RLKeras.py for details. Feel free to experiment with tweeking THROTTLE_BOOST or replacing the reward function altogether:
+The current reward function for an individual message/image is reward(distance_from_center) * (1 + cfg.THROTTLE_BOOST * throttle). See code in RLKeras.py for details. Feel free to experiment with tweaking THROTTLE_BOOST or replacing the reward function altogether:
 * THROTTLE_BOOST = .05  
 
