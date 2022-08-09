@@ -73,6 +73,13 @@ By initially doing imitation learning, RL can skip the long awkward phase learni
 
 * There's more that can be done with the minimalist 2 raspberry pi design. For example, instead of using a NN inspired by the simple convolutional NN used so well by the original donkeycar, a 2-level fully connected NN should be tried with PPO. A simplified NN should result in more FPS and faster throughput. Plenty of fine-tuning remains to improve performance.
 
+### Related Work
+
+Here's some other RL-Donkeycar related work:
+
+* https://github.com/flyyufelix/donkey_rl
+* https://towardsdatascience.com/learning-to-drive-smoothly-in-minutes-450a7cdb35f4
+
 ### Acknowledgements
 
 First thanks to Will Roscoe and Adam Conway for the initial donkeycar code, donkeycar design, and website (donkeycar.com). Will and Adam built the "hello world" of neural nets and real-world robotics. This repository tries to extend their work to Reinforcement Learning... but the RL coding isn't nearly as pretty :-) and may never be ready to be integrated into the main donkeycar branch.
